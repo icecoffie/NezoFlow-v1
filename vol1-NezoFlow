@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nezo Flow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 12px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.3); }
+
+        /* Dragging Visuals */
+        .dragging { opacity: 0.6; transform: rotate(2deg) scale(0.98); cursor: grabbing; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .kanban-column { min-height: 100px; }
+
+        /* Glassmorphism & Colors */
+        .glass-panel { background: rgba(245, 247, 250, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.4); }
+        .glass-header { background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.2); }
+        
+        /* Sky Gradient Background */
+        .bg-sky-gradient {
+            background: linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%);
+            /* Alternative fallback or animation could go here */
+        }
+
+        /* Dropdown Animation */
+        .dropdown-menu {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            transform-origin: top right;
+            transform: scale(0.95) translateY(-10px);
+            opacity: 0;
+            pointer-events: none;
+            visibility: hidden;
+        }
+        .dropdown-menu.active {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+            visibility: visible;
+        }
+
+        /* Modal Backdrop */
+        .modal-backdrop {
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(2px);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden bg-sky-gradient text-slate-700 select-none">
+
+    <!-- HIDDEN INPUTS -->
+    <input type="file" id="profile-upload-input" class="hidden" accept="image/*">
+    <input type="file" id="card-image-input" class="hidden" accept="image/*">
+
+    <!-- Top Navigation -->
+    <nav class="flex items-center justify-between px-4 py-2 bg-white/10 text-slate-800 h-14 relative z-50 border-b border-white/20">
+        <div class="flex items-center gap-6">
+            <div class="font-bold text-xl flex items-center gap-2 cursor-pointer text-blue-700 tracking-tight">
+                <i class="fa-solid fa-layer-group"></i> ZenithFlow
+            </div>
+            <div class="hidden md:flex gap-2 text-sm font-medium text-slate-600">
+                <div class="relative">
+                    <button id="btn-workspaces" class="hover:bg-white/40 px-3 py-1.5 rounded transition flex items-center gap-1">
+                        Workspaces <i class="fa-solid fa-angle-down text-xs opacity-70"></i>
+                    </button>
+                    <!-- Workspace Dropdown -->
+                    <div id="dropdown-workspaces" class="dropdown-menu absolute top-full left-0 mt-2 w-72 bg-white rounded-xl shadow-xl ring-1 ring-black/5 p-2 z-50">
+                        <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Your Workspaces</div>
+                        <div id="workspace-list">
+                            <div class="p-2 hover:bg-blue-50 rounded-lg cursor-pointer flex items-center gap-3 group">
+                                <div class="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-cyan-400 text-white flex items-center justify-center font-bold text-xs">A</div>
+                                <div>
+                                    <div class="font-bold text-sm text-gray-800">Airbnb Project</div>
+                                    <div class="text-xs text-gray-500">Free Workspace</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="h-[1px] bg-gray-100 my-2"></div>
+                        <button id="btn-create-workspace" class="w-full text-left p-2 hover:bg-gray-100 rounded-lg text-sm text-gray-600 flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Create Workspace
+                        </button>
+                    </div>
+                </div>
+                <a href="#" class="hover:bg-white/40 px-3 py-1.5 rounded transition">Recent</a>
+                <a href="#" class="hover:bg-white/40 px-3 py-1.5 rounded transition">Starred</a>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="relative hidden sm:block group">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2 text-slate-500 text-xs transition group-focus-within:text-blue-600"></i>
+                <input type="text" placeholder="Search..." class="bg-white/40 border border-white/30 rounded-full px-9 py-1.5 text-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 focus:w-64 w-48 transition-all placeholder-slate-500">
+            </div>
+            
+            <!-- Profile Avatar -->
+            <div class="relative">
+                <button id="btn-profile" class="w-9 h-9 rounded-full overflow-hidden border-2 border-white shadow-sm hover:shadow-md transition bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                    <span id="profile-initials">SR</span>
+                    <img id="profile-img-display" src="" class="w-full h-full object-cover hidden">
+                </button>
+                
+                <!-- Profile Dropdown -->
+                <div id="dropdown-profile" class="dropdown-menu absolute top-full right-0 mt-3 w-64 bg-white rounded-xl shadow-xl ring-1 ring-black/5 text-slate-700 py-2 z-50">
+                    <div class="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+                        <div class="text-sm font-bold text-gray-900">Skala Rinzani</div>
+                        <div class="text-xs text-gray-500">skala@nezoflow.tech</div>
+                    </div>
+                    <div class="py-1">
+                        <button id="menu-change-photo" class="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 text-blue-600 font-medium">
+                            Change Profile Photo
+                        </button>
+                        <button id="menu-profile" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">Profile and Visibility</button>
+                        <button id="menu-activity" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">Activity</button>
+                        <button id="menu-settings" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50">Settings</button>
+                    </div>
+                    <div class="h-[1px] bg-gray-100 my-1"></div>
+                    <button class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Log out</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Board Header -->
+    <div class="glass-header px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <h1 class="text-2xl font-bold text-slate-800 drop-shadow-sm cursor-text hover:bg-white/20 px-2 rounded -ml-2 transition">Skala Rinzani Project</h1>
+            <button class="text-slate-500 hover:text-yellow-500 transition"><i class="fa-regular fa-star"></i></button>
+            <div class="h-6 w-[1px] bg-slate-300"></div>
+            <button class="flex items-center gap-2 bg-white/40 hover:bg-white/60 px-3 py-1.5 rounded text-sm text-slate-700 font-medium transition shadow-sm">
+                <i class="fa-solid fa-users"></i> <span>Team Visible</span>
+            </button>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <div class="flex -space-x-2">
+                <img src="https://i.pravatar.cc/150?u=1" class="w-8 h-8 rounded-full border-2 border-white shadow-sm" title="Member 1">
+                <img src="https://i.pravatar.cc/150?u=2" class="w-8 h-8 rounded-full border-2 border-white shadow-sm" title="Member 2">
+                <img src="https://i.pravatar.cc/150?u=3" class="w-8 h-8 rounded-full border-2 border-white shadow-sm" title="Member 3">
+                <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold border-2 border-white shadow-sm cursor-pointer">+5</div>
+            </div>
+            <button class="bg-white/50 hover:bg-white text-slate-700 px-3 py-1.5 rounded text-sm font-medium transition shadow-sm">Filter</button>
+            <button class="bg-blue-600 hover:bg-blue-700 text-white w-8 h-8 rounded flex items-center justify-center transition shadow-md shadow-blue-500/30">
+                <i class="fa-solid fa-user-plus text-xs"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Canvas -->
+    <main class="flex-1 overflow-x-auto overflow-y-hidden h-[calc(100vh-120px)] p-6">
+        <div class="flex items-start gap-6 h-full w-max" id="board-container">
+            
+            <!-- COLUMN: TO DO -->
+            <div class="w-[300px] flex-shrink-0 flex flex-col max-h-full glass-panel rounded-xl shadow-lg">
+                <div class="p-3 pl-4 flex items-center justify-between cursor-grab active:cursor-grabbing">
+                    <h2 class="font-bold text-slate-700 text-sm">To Do</h2>
+                    <div class="flex items-center gap-2">
+                         <span class="card-count text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">3</span>
+                        <i class="fa-solid fa-ellipsis hover:bg-slate-200 p-1.5 rounded text-slate-400 cursor-pointer transition"></i>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto px-3 pb-2 custom-scrollbar space-y-3 kanban-column" id="col-todo">
+                    
+                    <!-- Card with Image -->
+                    <div class="bg-white p-0 rounded-lg shadow-sm border border-slate-100 hover:border-blue-400 hover:shadow-md cursor-pointer transition group draggable overflow-hidden" draggable="true">
+                        <div class="h-32 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop');"></div>
+                        <div class="p-3">
+                            <div class="flex gap-2 mb-2"><span class="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-100">Design</span></div>
+                            <p class="text-slate-800 text-sm font-medium leading-snug mb-2">Editorial Calendar Assets</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-slate-100 hover:border-blue-400 hover:shadow-md cursor-pointer transition group draggable" draggable="true">
+                        <p class="text-slate-800 text-sm font-medium leading-snug mb-3">Research competitors</p>
+                        <div class="flex items-center justify-between text-gray-400 text-xs">
+                            <div class="flex items-center gap-3"><span class="flex items-center gap-1"><i class="fa-solid fa-bars-staggered"></i></span></div>
+                            <div class="w-5 h-5 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 text-white flex items-center justify-center text-[9px] font-bold">SR</div>
+                        </div>
+                    </div>
+
+                </div>
+                <!-- Footer (Add Card) -->
+                <div class="p-3">
+                    <div class="add-card-form hidden flex-col gap-2 bg-white p-2 rounded-lg shadow-sm border border-blue-200">
+                        <div id="image-preview-area" class="hidden mb-1 relative group">
+                            <img src="" class="w-full h-24 object-cover rounded-md">
+                            <button class="absolute top-1 right-1 bg-black/50 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" onclick="removeTempImage(this)"><i class="fa-solid fa-times"></i></button>
+                        </div>
+                        <textarea class="w-full text-sm resize-none outline-none text-slate-700 placeholder:text-slate-400" rows="2" placeholder="Enter a title..."></textarea>
+                        <div class="flex items-center justify-between mt-1">
+                            <div class="flex items-center gap-2">
+                                <button class="btn-confirm-add bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-blue-700 transition shadow-sm">Add Card</button>
+                                <button class="btn-cancel-add text-slate-500 hover:text-slate-700"><i class="fa-solid fa-xmark fa-lg"></i></button>
+                            </div>
+                            <button class="btn-attach-image text-slate-400 hover:text-blue-500 transition px-2" title="Attach Image">
+                                <i class="fa-regular fa-image fa-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn-show-add w-full flex items-center gap-2 text-slate-600 hover:bg-black/5 hover:text-slate-800 p-2 rounded-lg text-sm transition font-medium">
+                        <i class="fa-solid fa-plus"></i> Add a card
+                    </button>
+                </div>
+            </div>
+
+            <!-- COLUMN: IN PROGRESS -->
+            <div class="w-[300px] flex-shrink-0 flex flex-col max-h-full glass-panel rounded-xl shadow-lg">
+                <div class="p-3 pl-4 flex items-center justify-between cursor-grab active:cursor-grabbing">
+                    <h2 class="font-bold text-slate-700 text-sm">In Progress</h2>
+                    <span class="card-count text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">1</span>
+                </div>
+                <div class="flex-1 overflow-y-auto px-3 pb-2 custom-scrollbar space-y-3 kanban-column" id="col-progress">
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-slate-100 hover:border-blue-400 hover:shadow-md cursor-pointer transition group draggable" draggable="true">
+                        <div class="flex gap-2 mb-2"><span class="bg-orange-50 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded border border-orange-100">Dev</span></div>
+                        <p class="text-slate-800 text-sm font-medium leading-snug mb-2">Fix navigation bug on mobile</p>
+                        <div class="flex items-center gap-2 mb-3 text-red-500 text-xs font-semibold bg-red-50 px-2 py-0.5 rounded w-max"><i class="fa-regular fa-clock"></i> 2 Days left</div>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div class="add-card-form hidden flex-col gap-2 bg-white p-2 rounded-lg shadow-sm border border-blue-200">
+                        <div class="hidden mb-1 relative group image-preview-container"><img src="" class="w-full h-24 object-cover rounded-md"><button class="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" onclick="removeTempImage(this)"><i class="fa-solid fa-times"></i></button></div>
+                        <textarea class="w-full text-sm resize-none outline-none text-slate-700" rows="2" placeholder="Enter a title..."></textarea>
+                        <div class="flex items-center justify-between mt-1">
+                            <div class="flex items-center gap-2">
+                                <button class="btn-confirm-add bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-semibold">Add Card</button>
+                                <button class="btn-cancel-add text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <button class="btn-attach-image text-slate-400 hover:text-blue-500"><i class="fa-regular fa-image"></i></button>
+                        </div>
+                    </div>
+                    <button class="btn-show-add w-full flex items-center gap-2 text-slate-600 hover:bg-black/5 p-2 rounded-lg text-sm transition font-medium"><i class="fa-solid fa-plus"></i> Add a card</button>
+                </div>
+            </div>
+
+            <!-- COLUMN: DONE -->
+            <div class="w-[300px] flex-shrink-0 flex flex-col max-h-full glass-panel rounded-xl shadow-lg">
+                <div class="p-3 pl-4 flex items-center justify-between cursor-grab active:cursor-grabbing">
+                    <h2 class="font-bold text-slate-700 text-sm">Done</h2>
+                    <span class="card-count text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">1</span>
+                </div>
+                <div class="flex-1 overflow-y-auto px-3 pb-2 custom-scrollbar space-y-3 kanban-column" id="col-done">
+                    <div class="bg-white p-3 rounded-lg shadow-sm border border-slate-100 hover:border-blue-400 hover:shadow-md cursor-pointer transition group draggable" draggable="true">
+                        <div class="flex gap-2 mb-2"><span class="bg-green-50 text-green-600 text-[10px] font-bold px-2 py-0.5 rounded border border-green-100">QA</span></div>
+                        <p class="text-slate-800 text-sm font-medium leading-snug line-through text-slate-400">Monthly Report generated</p>
+                    </div>
+                </div>
+                 <div class="p-3">
+                    <div class="add-card-form hidden flex-col gap-2 bg-white p-2 rounded-lg shadow-sm border border-blue-200">
+                        <div class="hidden mb-1 relative group image-preview-container"><img src="" class="w-full h-24 object-cover rounded-md"><button class="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" onclick="removeTempImage(this)"><i class="fa-solid fa-times"></i></button></div>
+                        <textarea class="w-full text-sm resize-none outline-none text-slate-700" rows="2" placeholder="Enter a title..."></textarea>
+                        <div class="flex items-center justify-between mt-1">
+                            <div class="flex items-center gap-2">
+                                <button class="btn-confirm-add bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-semibold">Add Card</button>
+                                <button class="btn-cancel-add text-slate-500"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <button class="btn-attach-image text-slate-400 hover:text-blue-500"><i class="fa-regular fa-image"></i></button>
+                        </div>
+                    </div>
+                    <button class="btn-show-add w-full flex items-center gap-2 text-slate-600 hover:bg-black/5 p-2 rounded-lg text-sm transition font-medium"><i class="fa-solid fa-plus"></i> Add a card</button>
+                </div>
+            </div>
+
+             <!-- ADD LIST BTN -->
+             <div class="w-[300px] flex-shrink-0">
+                <button class="w-full bg-white/30 hover:bg-white/50 text-slate-700 font-semibold p-3 rounded-xl transition flex items-center gap-2 border border-white/40 shadow-sm text-sm">
+                    <i class="fa-solid fa-plus"></i> Add another list
+                </button>
+             </div>
+
+        </div>
+    </main>
+
+    <!-- MODALS (Hidden by default) -->
+    <!-- Generic Modal -->
+    <div id="app-modal" class="fixed inset-0 z-[100] hidden items-center justify-center modal-backdrop p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl transform transition-all scale-95 opacity-0 modal-content overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                <h3 id="modal-title" class="font-bold text-lg text-slate-800">Settings</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark fa-lg"></i></button>
+            </div>
+            <div id="modal-body" class="p-6 text-slate-600 text-sm leading-relaxed">
+                <!-- Content injected via JS -->
+            </div>
+            <div class="bg-gray-50 px-6 py-3 flex justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Workspace Modal -->
+     <div id="workspace-modal" class="fixed inset-0 z-[100] hidden items-center justify-center modal-backdrop p-4">
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6">
+            <h3 class="font-bold text-lg text-slate-800 mb-4">New Workspace</h3>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Workspace Name</label>
+            <input type="text" id="new-workspace-name" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-4" placeholder="e.g. Marketing Team">
+            <div class="flex justify-end gap-2">
+                <button onclick="document.getElementById('workspace-modal').classList.add('hidden')" class="px-4 py-2 text-slate-500 text-sm font-medium hover:bg-gray-100 rounded-lg">Cancel</button>
+                <button id="btn-save-workspace" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-lg shadow-blue-500/30">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global State for current image upload
+        let currentImageBase64 = null;
+        let activeAddCardForm = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initDragAndDrop();
+            setupDropdowns();
+            setupAddCardLogic();
+            setupProfileImageUpload();
+            setupMenuModals();
+            setupWorkspaceLogic();
+        });
+
+        /* --- DRAG & DROP ENGINE --- */
+        function initDragAndDrop() {
+            const draggables = document.querySelectorAll('.draggable');
+            const containers = document.querySelectorAll('.kanban-column');
+
+            draggables.forEach(draggable => {
+                draggable.addEventListener('dragstart', () => {
+                    draggable.classList.add('dragging');
+                });
+                draggable.addEventListener('dragend', () => {
+                    draggable.classList.remove('dragging');
+                    updateCounts();
+                });
+            });
+
+            containers.forEach(container => {
+                container.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    const afterElement = getDragAfterElement(container, e.clientY);
+                    const draggable = document.querySelector('.dragging');
+                    if (afterElement == null) {
+                        container.appendChild(draggable);
+                    } else {
+                        container.insertBefore(draggable, afterElement);
+                    }
+                });
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function updateCounts() {
+            document.querySelectorAll('.kanban-column').forEach(col => {
+                const count = col.children.length;
+                const header = col.parentElement.querySelector('.card-count');
+                if (header) header.textContent = count;
+            });
+        }
+
+        /* --- ADD CARD & IMAGE UPLOAD LOGIC --- */
+        function setupAddCardLogic() {
+            // Show/Hide Form
+            document.querySelectorAll('.btn-show-add').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const footer = e.target.closest('.p-3');
+                    footer.querySelector('.btn-show-add').classList.add('hidden');
+                    const form = footer.querySelector('.add-card-form');
+                    form.classList.remove('hidden');
+                    form.classList.add('flex');
+                    form.querySelector('textarea').focus();
+                    
+                    // Reset local state
+                    currentImageBase64 = null;
+                    const preview = form.querySelector('.image-preview-container') || form.querySelector('#image-preview-area');
+                    preview.classList.add('hidden');
+                    activeAddCardForm = form;
+                });
+            });
+
+            // Cancel
+            document.querySelectorAll('.btn-cancel-add').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const footer = e.target.closest('.p-3');
+                    const form = footer.querySelector('.add-card-form');
+                    form.classList.add('hidden');
+                    form.classList.remove('flex');
+                    footer.querySelector('.btn-show-add').classList.remove('hidden');
+                    form.querySelector('textarea').value = '';
+                });
+            });
+
+            // Attach Image Click
+            document.querySelectorAll('.btn-attach-image').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    // Update active form reference so input change knows where to show preview
+                    activeAddCardForm = e.target.closest('.add-card-form');
+                    document.getElementById('card-image-input').click();
+                });
+            });
+
+            // Add Card Confirm
+            document.querySelectorAll('.btn-confirm-add').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const form = e.target.closest('.add-card-form');
+                    const textarea = form.querySelector('textarea');
+                    const text = textarea.value.trim();
+                    const column = form.closest('.glass-panel').querySelector('.kanban-column');
+                    
+                    // Allow adding if text exists OR image exists
+                    const previewImg = form.querySelector('img');
+                    const hasImage = !previewImg.parentElement.classList.contains('hidden') && previewImg.src;
+
+                    if (text || hasImage) {
+                        createCard(column, text, hasImage ? previewImg.src : null);
+                        
+                        // Reset form
+                        textarea.value = '';
+                        textarea.focus();
+                        form.querySelector('div.relative').classList.add('hidden'); // hide preview
+                        currentImageBase64 = null;
+                    }
+                });
+            });
+            
+            // Handle File Input Change for Card Image
+            document.getElementById('card-image-input').addEventListener('change', function(e) {
+                if (this.files && this.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        if (activeAddCardForm) {
+                            const previewContainer = activeAddCardForm.querySelector('div.relative') || activeAddCardForm.querySelector('#image-preview-area');
+                            const img = previewContainer.querySelector('img');
+                            img.src = e.target.result;
+                            previewContainer.classList.remove('hidden');
+                        }
+                    }
+                    reader.readAsDataURL(this.files[0]);
+                }
+                this.value = ''; // reset to allow selecting same file again
+            });
+        }
+
+        function removeTempImage(btn) {
+            btn.parentElement.classList.add('hidden');
+            btn.parentElement.querySelector('img').src = '';
+        }
+        
+        // Expose to window for inline onclick
+        window.removeTempImage = removeTempImage;
+
+        function createCard(column, text, imageUrl) {
+            const newCard = document.createElement('div');
+            newCard.className = 'bg-white p-0 rounded-lg shadow-sm border border-slate-100 hover:border-blue-400 hover:shadow-md cursor-pointer transition group draggable overflow-hidden';
+            newCard.setAttribute('draggable', 'true');
+            
+            let html = '';
+            
+            if (imageUrl) {
+                html += `<div class="h-32 bg-cover bg-center" style="background-image: url('${imageUrl}');"></div>`;
+            }
+            
+            html += `<div class="p-3">`;
+            if (text) {
+                html += `<p class="text-slate-800 text-sm font-medium leading-snug mb-2">${text}</p>`;
+            }
+            html += `
+                <div class="flex items-center justify-between text-gray-400 text-xs mt-2">
+                     <div class="flex items-center gap-2 text-slate-400">
+                        <span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">New</span>
+                    </div>
+                </div>
+            </div>`;
+
+            newCard.innerHTML = html;
+            column.appendChild(newCard);
+            
+            // Re-init drag events for new element
+            const draggable = newCard;
+            draggable.addEventListener('dragstart', () => draggable.classList.add('dragging'));
+            draggable.addEventListener('dragend', () => {
+                draggable.classList.remove('dragging');
+                updateCounts();
+            });
+            updateCounts();
+        }
+
+        /* --- PROFILE IMAGE LOGIC --- */
+        function setupProfileImageUpload() {
+            const btnChangePhoto = document.getElementById('menu-change-photo');
+            const fileInput = document.getElementById('profile-upload-input');
+            const profileDisplay = document.getElementById('profile-img-display');
+            const profileInitials = document.getElementById('profile-initials');
+
+            btnChangePhoto.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        // Update Avatar
+                        profileDisplay.src = e.target.result;
+                        profileDisplay.classList.remove('hidden');
+                        profileInitials.classList.add('hidden');
+                        
+                        // Close dropdown
+                        document.getElementById('dropdown-profile').classList.remove('active');
+                        
+                        // Show Success Toast (simulated with modal for now)
+                        showModal('Success', 'Profile photo updated successfully!');
+                    }
+                    reader.readAsDataURL(this.files[0]);
+                }
+            });
+        }
+
+        /* --- MENU & WORKSPACE LOGIC --- */
+        function setupDropdowns() {
+            const btnWorkspaces = document.getElementById('btn-workspaces');
+            const menuWorkspaces = document.getElementById('dropdown-workspaces');
+            const btnProfile = document.getElementById('btn-profile');
+            const menuProfile = document.getElementById('dropdown-profile');
+
+            function toggle(menu) {
+                const isActive = menu.classList.contains('active');
+                document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('active'));
+                if (!isActive) menu.classList.add('active');
+            }
+
+            btnWorkspaces.addEventListener('click', (e) => { e.stopPropagation(); toggle(menuWorkspaces); });
+            btnProfile.addEventListener('click', (e) => { e.stopPropagation(); toggle(menuProfile); });
+
+            document.addEventListener('click', () => {
+                document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('active'));
+            });
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.addEventListener('click', e => e.stopPropagation()));
+        }
+
+        function setupMenuModals() {
+            document.getElementById('menu-profile').addEventListener('click', () => {
+                showModal('Profile & Visibility', 'Manage who can see your profile and activity. <br><br><b>Visibility:</b> Public<br><b>Bio:</b> Project Manager at ZenithFlow');
+            });
+            document.getElementById('menu-activity').addEventListener('click', () => {
+                showModal('Activity Log', '<b>Today:</b><br>- Added "Fix Nav Bug" to In Progress<br>- Uploaded new cover image<br><br><b>Yesterday:</b><br>- Created "Marketing" Workspace');
+            });
+            document.getElementById('menu-settings').addEventListener('click', () => {
+                showModal('Settings', 'Application Preferences:<br><br>- <b>Theme:</b> Sky Blue (Active)<br>- <b>Notifications:</b> Enabled<br>- <b>Language:</b> English');
+            });
+        }
+
+        function setupWorkspaceLogic() {
+            const btnCreate = document.getElementById('btn-create-workspace');
+            const modal = document.getElementById('workspace-modal');
+            const btnSave = document.getElementById('btn-save-workspace');
+            const input = document.getElementById('new-workspace-name');
+            const list = document.getElementById('workspace-list');
+
+            btnCreate.addEventListener('click', () => {
+                document.getElementById('dropdown-workspaces').classList.remove('active');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                input.focus();
+            });
+
+            btnSave.addEventListener('click', () => {
+                const name = input.value.trim();
+                if (name) {
+                    // Add new item to list
+                    const initial = name.charAt(0).toUpperCase();
+                    const newItem = document.createElement('div');
+                    newItem.className = 'p-2 hover:bg-blue-50 rounded-lg cursor-pointer flex items-center gap-3 group mt-1';
+                    newItem.innerHTML = `
+                        <div class="w-8 h-8 rounded bg-gradient-to-br from-indigo-500 to-purple-500 text-white flex items-center justify-center font-bold text-xs">${initial}</div>
+                        <div>
+                            <div class="font-bold text-sm text-gray-800">${name}</div>
+                            <div class="text-xs text-gray-500">Private Workspace</div>
+                        </div>
+                    `;
+                    list.appendChild(newItem);
+                    
+                    // Reset and Close
+                    input.value = '';
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    
+                    showModal('Workspace Created', `"${name}" has been successfully created!`);
+                }
+            });
+        }
+
+        /* --- MODAL UTILS --- */
+        function showModal(title, body) {
+            const modal = document.getElementById('app-modal');
+            const modalContent = modal.querySelector('.modal-content');
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').innerHTML = body;
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            // Animation trigger
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        window.closeModal = function() {
+            const modal = document.getElementById('app-modal');
+            const modalContent = modal.querySelector('.modal-content');
+            
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 200);
+        }
+    </script>
+</body>
+</html>
